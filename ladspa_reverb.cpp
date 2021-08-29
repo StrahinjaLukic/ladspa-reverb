@@ -8,7 +8,7 @@
 
 #include "ladspa.h"
 
-#include "port_description.hpp"
+#include "port_descriptor_builder.hpp"
 
 namespace {
 
@@ -247,21 +247,19 @@ public:
     g_descriptor->Copyright = copyright.data();
 
     PortDescriptorSetter port_descriptor_setter;
-    port_descriptor_setter.AddPortDescription(
-        PortDescription("Input")
-            .WithType(PortType::kInput)
-            .WithUsage(PortUsage::kAudio));
-    port_descriptor_setter.AddPortDescription(
-        PortDescription("Output")
-            .WithType(PortType::kInput)
-            .WithUsage(PortUsage::kAudio));
-    port_descriptor_setter.AddPortDescription(
-        PortDescription("Decay (s)")
+    port_descriptor_setter.AddPortDescriptor(PortDescriptorBuilder("Input")
+                                                 .WithType(PortType::kInput)
+                                                 .WithUsage(PortUsage::kAudio));
+    port_descriptor_setter.AddPortDescriptor(PortDescriptorBuilder("Output")
+                                                 .WithType(PortType::kInput)
+                                                 .WithUsage(PortUsage::kAudio));
+    port_descriptor_setter.AddPortDescriptor(
+        PortDescriptorBuilder("Decay (s)")
             .WithType(PortType::kInput)
             .WithUsage(PortUsage::kControl)
             .WithLowerBound(Reverb::kMinimumDecayS));
-    port_descriptor_setter.AddPortDescription(
-        PortDescription("Relative wet signal level")
+    port_descriptor_setter.AddPortDescriptor(
+        PortDescriptorBuilder("Relative wet signal level")
             .WithType(PortType::kInput)
             .WithUsage(PortUsage::kControl)
             .WithLowerBound(Reverb::kMinimumWetLevel)
