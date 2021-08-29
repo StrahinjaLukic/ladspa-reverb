@@ -1,5 +1,3 @@
-#include "ladspa.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -7,6 +5,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "ladspa.h"
+
+#include "port_description.hpp"
 
 namespace {
 
@@ -228,10 +230,6 @@ class StartupShutdownHandler {
 
   const std::string maker{"Strahinja Lukic"};
   const std::string copyright{"None"};
-  const std::string input_port_name{"Input"};
-  const std::string output_port_name{"Output"};
-  const std::string decay_port_name{"Decay (s)"};
-  const std::string wet_level_port_name{"Relative wet signal level"};
   const std::string label{"reverb"};
   const std::string name{"Simple Reverb"};
 
@@ -247,47 +245,29 @@ public:
     g_descriptor->Properties = 0;
     g_descriptor->Maker = maker.data();
     g_descriptor->Copyright = copyright.data();
-    g_descriptor->PortCount = kPortCount;
 
-    LADSPA_PortDescriptor *port_descriptors =
-        new LADSPA_PortDescriptor[kPortCount];
-    g_descriptor->PortDescriptors =
-        static_cast<const LADSPA_PortDescriptor *>(port_descriptors);
-    port_descriptors[ToIndex(PortId::kInput)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO;
-    port_descriptors[ToIndex(PortId::kOutput)] =
-        LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO;
-    port_descriptors[ToIndex(PortId::kDecay)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
-    port_descriptors[ToIndex(PortId::kWetLevel)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
+    PortDescriptorSetter port_descriptor_setter;
+    port_descriptor_setter.AddPortDescription(
+        PortDescription("Input")
+            .WithType(PortType::kInput)
+            .WithUsage(PortUsage::kAudio));
+    port_descriptor_setter.AddPortDescription(
+        PortDescription("Output")
+            .WithType(PortType::kInput)
+            .WithUsage(PortUsage::kAudio));
+    port_descriptor_setter.AddPortDescription(
+        PortDescription("Decay (s)")
+            .WithType(PortType::kInput)
+            .WithUsage(PortUsage::kControl)
+            .WithLowerBound(Reverb::kMinimumDecayS));
+    port_descriptor_setter.AddPortDescription(
+        PortDescription("Relative wet signal level")
+            .WithType(PortType::kInput)
+            .WithUsage(PortUsage::kControl)
+            .WithLowerBound(Reverb::kMinimumWetLevel)
+            .WithUpperBound(Reverb::kMaximumWetLevel));
 
-    LADSPA_PortRangeHint *port_range_hints =
-        new LADSPA_PortRangeHint[kPortCount];
-    port_range_hints[ToIndex(PortId::kInput)].HintDescriptor = 0;
-    port_range_hints[ToIndex(PortId::kOutput)].HintDescriptor = 0;
-
-    port_range_hints[ToIndex(PortId::kDecay)].HintDescriptor =
-        LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_DEFAULT_MINIMUM;
-    port_range_hints[ToIndex(PortId::kDecay)].LowerBound =
-        Reverb::kMinimumDecayS;
-
-    port_range_hints[ToIndex(PortId::kWetLevel)].HintDescriptor =
-        LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_BOUNDED_ABOVE |
-        LADSPA_HINT_DEFAULT_1;
-    port_range_hints[ToIndex(PortId::kWetLevel)].LowerBound =
-        Reverb::kMinimumWetLevel;
-    port_range_hints[ToIndex(PortId::kWetLevel)].UpperBound =
-        Reverb::kMaximumWetLevel;
-
-    g_descriptor->PortRangeHints = port_range_hints;
-
-    pc_port_names = new const char *[kPortCount];
-    g_descriptor->PortNames = static_cast<const char **>(pc_port_names);
-    pc_port_names[ToIndex(PortId::kInput)] = input_port_name.data();
-    pc_port_names[ToIndex(PortId::kOutput)] = output_port_name.data();
-    pc_port_names[ToIndex(PortId::kDecay)] = decay_port_name.data();
-    pc_port_names[ToIndex(PortId::kWetLevel)] = wet_level_port_name.data();
+    port_descriptor_setter.SetPortDescriptors(*g_descriptor);
 
     g_descriptor->instantiate = InstantiateReverb;
     g_descriptor->connect_port = ConnectPortToReverb;
@@ -301,9 +281,9 @@ public:
 
   ~StartupShutdownHandler() {
     if (g_descriptor) {
-      delete [] g_descriptor->PortDescriptors;
-      delete [] g_descriptor->PortRangeHints;
-      delete [] g_descriptor->PortNames;
+      delete[] g_descriptor->PortDescriptors;
+      delete[] g_descriptor->PortRangeHints;
+      delete[] g_descriptor->PortNames;
       delete g_descriptor;
     }
   }
