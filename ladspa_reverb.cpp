@@ -1,5 +1,3 @@
-#include "ladspa.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -7,6 +5,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "ladspa.h"
 
 namespace {
 
@@ -19,17 +19,13 @@ constexpr std::size_t ToIndex(PortId port_enum) {
 static constexpr unsigned long kPortCount = ToIndex(PortId::kPortCount);
 
 constexpr PortId ToEnum(unsigned long port_index) {
-  if (port_index > kPortCount) {
-    throw std::invalid_argument("PortId index out of range");
-  }
+  if (port_index > kPortCount) { throw std::invalid_argument("PortId index out of range"); }
   return static_cast<PortId>(port_index);
 }
 
-static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *,
-                                       unsigned long sample_rate);
+static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate);
 
-static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port,
-                                LADSPA_Data *data_location);
+static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location);
 
 static void ActivateReverb(LADSPA_Handle handle);
 
@@ -38,14 +34,14 @@ static void RunReverb(LADSPA_Handle handle, unsigned long sample_count);
 static void CleanupReverb(LADSPA_Handle handle);
 
 class Reverb {
-public:
+  public:
   static inline constexpr LADSPA_Data kMinimumDecayS{0.01};
   static inline constexpr LADSPA_Data kDefaultDecayS{0.1};
   static inline constexpr LADSPA_Data kMinimumWetLevel{0.1};
   static inline constexpr LADSPA_Data kMaximumWetLevel{10};
   static inline constexpr LADSPA_Data kDefaultWetLevel{1};
 
-private:
+  private:
   /* Ports: */
   LADSPA_Data *input_{};
   LADSPA_Data *output_{};
@@ -56,11 +52,9 @@ private:
   std::vector<LADSPA_Data> window_;
   std::size_t window_write_position_{0};
   std::size_t window_read_position_{0};
-  double microsample_duration_s_; // Duration of a microsample in seconds
-  LADSPA_Data decay_s_{
-      kDefaultDecayS}; // Stored exponential decay time in seconds
-  LADSPA_Data wet_level_{
-      kDefaultWetLevel}; // Stored relative level of wet signal
+  double microsample_duration_s_;           // Duration of a microsample in seconds
+  LADSPA_Data decay_s_{kDefaultDecayS};     // Stored exponential decay time in seconds
+  LADSPA_Data wet_level_{kDefaultWetLevel}; // Stored relative level of wet signal
   unsigned long sample_rate_;
 
   double weight_{1};
@@ -75,13 +69,11 @@ private:
   void ResetWindow() {
     window_.resize(std::lround(microsample_duration_s_ * sample_rate_), 0);
     window_write_position_ = 0;
-    window_read_position_ = 0;
+    window_read_position_  = 0;
   }
 
   bool UpdateDecay() {
-    const auto decay_from_port = decay_s_port_ != nullptr
-                                     ? std::max(*decay_s_port_, kMinimumDecayS)
-                                     : kDefaultDecayS;
+    const auto decay_from_port = decay_s_port_ != nullptr ? std::max(*decay_s_port_, kMinimumDecayS) : kDefaultDecayS;
     if (decay_s_ != decay_from_port) {
       decay_s_ = decay_from_port;
       return true;
@@ -90,10 +82,9 @@ private:
   }
 
   bool UpdateWetLevel() {
-    const auto wet_level_from_port =
-        wet_level_port_ != nullptr
-            ? std::clamp(*wet_level_port_, kMinimumWetLevel, kMaximumWetLevel)
-            : kDefaultWetLevel;
+    const auto wet_level_from_port = wet_level_port_ != nullptr
+                                             ? std::clamp(*wet_level_port_, kMinimumWetLevel, kMaximumWetLevel)
+                                             : kDefaultWetLevel;
     if (wet_level_ != wet_level_from_port) {
       wet_level_ = wet_level_from_port;
       return true;
@@ -104,23 +95,21 @@ private:
   void UpdateWeight(bool force = false) {
     if (UpdateDecay() || force) {
       const auto t_buffer = static_cast<double>(window_.size()) / sample_rate_;
-      weight_ = std::exp(-t_buffer / decay_s_);
+      weight_             = std::exp(-t_buffer / decay_s_);
       std::cout << "Reverb: Updating weight to " << weight_ << std::endl;
     }
   }
 
   void ApplyWindow(unsigned long offset) {
-    const auto i_end = std::min(window_.size(), window_write_position_);
+    const auto i_end      = std::min(window_.size(), window_write_position_);
     const auto wet_factor = wet_level_ / weight_;
-    for (unsigned long i_window = window_read_position_; i_window < i_end;
-         ++i_window) {
-      output_[offset + i_window] =
-          input_[offset + i_window] + wet_factor * window_[i_window];
+    for (unsigned long i_window = window_read_position_; i_window < i_end; ++i_window) {
+      output_[offset + i_window] = input_[offset + i_window] + wet_factor * window_[i_window];
     }
     window_read_position_ = i_end;
     if (window_write_position_ == window_.size()) {
       window_write_position_ = 0;
-      window_read_position_ = 0;
+      window_read_position_  = 0;
     }
   }
 
@@ -129,15 +118,12 @@ private:
     UpdateWeight();
     std::size_t window_offset = 0;
 
-    for (unsigned long i_sample = 0; i_sample < sample_count;
-         ++i_sample, ++window_write_position_) {
+    for (unsigned long i_sample = 0; i_sample < sample_count; ++i_sample, ++window_write_position_) {
       if (window_write_position_ >= window_.size()) {
         ApplyWindow(window_offset);
         window_offset += window_.size();
       }
-      window_[window_write_position_] =
-          weight_ * window_[window_write_position_] +
-          (1. - weight_) * input_[i_sample];
+      window_[window_write_position_] = weight_ * window_[window_write_position_] + (1. - weight_) * input_[i_sample];
     }
     ApplyWindow(window_offset);
   }
@@ -162,11 +148,9 @@ private:
     throw std::invalid_argument("PortId number unknown");
   }
 
-  friend LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *,
-                                         unsigned long sample_rate);
+  friend LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate);
 
-  friend void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port,
-                                  LADSPA_Data *data_location);
+  friend void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location);
 
   friend void ActivateReverb(LADSPA_Handle handle);
 
@@ -181,18 +165,15 @@ private:
 
 /*****************************************************************************/
 
-static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *,
-                                       unsigned long sample_rate) {
+static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate) {
   static constexpr double microsample_duration_s = 0.01;
   return new Reverb(sample_rate, microsample_duration_s);
 }
 
 /*****************************************************************************/
 
-static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port,
-                                LADSPA_Data *data_location) {
-  std::cout << "ConnectPortToReverb(" << handle << ", " << port << ")"
-            << std::endl;
+static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location) {
+  std::cout << "ConnectPortToReverb(" << handle << ", " << port << ")" << std::endl;
   Reverb::Instance(handle).ConnectPort(port, data_location);
 }
 
@@ -235,75 +216,63 @@ class StartupShutdownHandler {
   const std::string label{"reverb"};
   const std::string name{"Simple Reverb"};
 
-public:
+  public:
   StartupShutdownHandler() {
     const char **pc_port_names;
 
     g_descriptor = new LADSPA_Descriptor;
 
-    g_descriptor->Label = label.data();
-    g_descriptor->Name = name.data();
-    g_descriptor->UniqueID = 1083;
+    g_descriptor->Label      = label.data();
+    g_descriptor->Name       = name.data();
+    g_descriptor->UniqueID   = 1083;
     g_descriptor->Properties = 0;
-    g_descriptor->Maker = maker.data();
-    g_descriptor->Copyright = copyright.data();
-    g_descriptor->PortCount = kPortCount;
+    g_descriptor->Maker      = maker.data();
+    g_descriptor->Copyright  = copyright.data();
+    g_descriptor->PortCount  = kPortCount;
 
-    LADSPA_PortDescriptor *port_descriptors =
-        new LADSPA_PortDescriptor[kPortCount];
-    g_descriptor->PortDescriptors =
-        static_cast<const LADSPA_PortDescriptor *>(port_descriptors);
-    port_descriptors[ToIndex(PortId::kInput)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO;
-    port_descriptors[ToIndex(PortId::kOutput)] =
-        LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO;
-    port_descriptors[ToIndex(PortId::kDecay)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
-    port_descriptors[ToIndex(PortId::kWetLevel)] =
-        LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
+    LADSPA_PortDescriptor *port_descriptors      = new LADSPA_PortDescriptor[kPortCount];
+    g_descriptor->PortDescriptors                = static_cast<const LADSPA_PortDescriptor *>(port_descriptors);
+    port_descriptors[ToIndex(PortId::kInput)]    = LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO;
+    port_descriptors[ToIndex(PortId::kOutput)]   = LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO;
+    port_descriptors[ToIndex(PortId::kDecay)]    = LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
+    port_descriptors[ToIndex(PortId::kWetLevel)] = LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL;
 
-    LADSPA_PortRangeHint *port_range_hints =
-        new LADSPA_PortRangeHint[kPortCount];
-    port_range_hints[ToIndex(PortId::kInput)].HintDescriptor = 0;
+    LADSPA_PortRangeHint *port_range_hints                    = new LADSPA_PortRangeHint[kPortCount];
+    port_range_hints[ToIndex(PortId::kInput)].HintDescriptor  = 0;
     port_range_hints[ToIndex(PortId::kOutput)].HintDescriptor = 0;
 
-    port_range_hints[ToIndex(PortId::kDecay)].HintDescriptor =
-        LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_DEFAULT_MINIMUM;
-    port_range_hints[ToIndex(PortId::kDecay)].LowerBound =
-        Reverb::kMinimumDecayS;
+    port_range_hints[ToIndex(PortId::kDecay)].HintDescriptor = LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_DEFAULT_MINIMUM;
+    port_range_hints[ToIndex(PortId::kDecay)].LowerBound     = Reverb::kMinimumDecayS;
 
     port_range_hints[ToIndex(PortId::kWetLevel)].HintDescriptor =
-        LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_BOUNDED_ABOVE |
-        LADSPA_HINT_DEFAULT_1;
-    port_range_hints[ToIndex(PortId::kWetLevel)].LowerBound =
-        Reverb::kMinimumWetLevel;
-    port_range_hints[ToIndex(PortId::kWetLevel)].UpperBound =
-        Reverb::kMaximumWetLevel;
+            LADSPA_HINT_BOUNDED_BELOW | LADSPA_HINT_BOUNDED_ABOVE | LADSPA_HINT_DEFAULT_1;
+    port_range_hints[ToIndex(PortId::kWetLevel)].LowerBound = Reverb::kMinimumWetLevel;
+    port_range_hints[ToIndex(PortId::kWetLevel)].UpperBound = Reverb::kMaximumWetLevel;
 
     g_descriptor->PortRangeHints = port_range_hints;
 
-    pc_port_names = new const char *[kPortCount];
-    g_descriptor->PortNames = static_cast<const char **>(pc_port_names);
-    pc_port_names[ToIndex(PortId::kInput)] = input_port_name.data();
-    pc_port_names[ToIndex(PortId::kOutput)] = output_port_name.data();
-    pc_port_names[ToIndex(PortId::kDecay)] = decay_port_name.data();
+    pc_port_names                             = new const char *[kPortCount];
+    g_descriptor->PortNames                   = static_cast<const char **>(pc_port_names);
+    pc_port_names[ToIndex(PortId::kInput)]    = input_port_name.data();
+    pc_port_names[ToIndex(PortId::kOutput)]   = output_port_name.data();
+    pc_port_names[ToIndex(PortId::kDecay)]    = decay_port_name.data();
     pc_port_names[ToIndex(PortId::kWetLevel)] = wet_level_port_name.data();
 
-    g_descriptor->instantiate = InstantiateReverb;
-    g_descriptor->connect_port = ConnectPortToReverb;
-    g_descriptor->activate = ActivateReverb;
-    g_descriptor->run_adding = nullptr;
+    g_descriptor->instantiate         = InstantiateReverb;
+    g_descriptor->connect_port        = ConnectPortToReverb;
+    g_descriptor->activate            = ActivateReverb;
+    g_descriptor->run_adding          = nullptr;
     g_descriptor->set_run_adding_gain = nullptr;
-    g_descriptor->deactivate = nullptr;
-    g_descriptor->cleanup = CleanupReverb;
-    g_descriptor->run = RunReverb;
+    g_descriptor->deactivate          = nullptr;
+    g_descriptor->cleanup             = CleanupReverb;
+    g_descriptor->run                 = RunReverb;
   }
 
   ~StartupShutdownHandler() {
     if (g_descriptor) {
-      delete [] g_descriptor->PortDescriptors;
-      delete [] g_descriptor->PortRangeHints;
-      delete [] g_descriptor->PortNames;
+      delete[] g_descriptor->PortDescriptors;
+      delete[] g_descriptor->PortRangeHints;
+      delete[] g_descriptor->PortNames;
       delete g_descriptor;
     }
   }
