@@ -100,6 +100,8 @@ class Reverb {
     }
   }
 
+  // Applies window contents to output, starting from offset and ending at
+  // std::min(window_.size(), window_write_position_)
   void ApplyWindow(unsigned long offset) {
     const auto i_end      = std::min(window_.size(), window_write_position_);
     const auto wet_factor = wet_level_ / weight_;
@@ -119,6 +121,7 @@ class Reverb {
     std::size_t window_offset = 0;
 
     for (unsigned long i_sample = 0; i_sample < sample_count; ++i_sample, ++window_write_position_) {
+      if (window_offset + window_write_position_ >= sample_count) { break; }
       if (window_write_position_ >= window_.size()) {
         ApplyWindow(window_offset);
         window_offset += window_.size();
