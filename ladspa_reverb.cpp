@@ -23,16 +23,6 @@ constexpr PortId ToEnum(unsigned long port_index) {
   return static_cast<PortId>(port_index);
 }
 
-static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate);
-
-static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location);
-
-static void ActivateReverb(LADSPA_Handle handle);
-
-static void RunReverb(LADSPA_Handle handle, unsigned long sample_count);
-
-static void CleanupReverb(LADSPA_Handle handle);
-
 class Reverb {
   public:
   static inline constexpr LADSPA_Data kMinimumDecayS{0.01};
@@ -170,14 +160,14 @@ class Reverb {
 
 /*****************************************************************************/
 
-static LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate) {
+LADSPA_Handle InstantiateReverb(const LADSPA_Descriptor *, unsigned long sample_rate) {
   static constexpr double microsample_duration_s = 0.01;
   return new Reverb(sample_rate, microsample_duration_s);
 }
 
 /*****************************************************************************/
 
-static void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location) {
+void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *data_location) {
   std::cout << "ConnectPortToReverb(" << handle << ", " << port << ")" << std::endl;
   Reverb::Instance(handle).ConnectPort(port, data_location);
 }
