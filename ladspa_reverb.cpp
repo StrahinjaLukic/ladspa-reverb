@@ -106,7 +106,7 @@ class Reverb {
     const auto i_end      = std::min(window_.size(), window_write_position_);
     const auto wet_factor = wet_level_ / weight_;
     for (unsigned long i_window = window_read_position_; i_window < i_end; ++i_window) {
-      output_[offset + i_window] = input_[offset + i_window] + wet_factor * window_[i_window];
+      output_[offset + i_window] += wet_factor * window_[i_window];
     }
     window_read_position_ = i_end;
     if (window_write_position_ == window_.size()) {
@@ -119,6 +119,8 @@ class Reverb {
     UpdateWetLevel();
     UpdateWeight();
     std::size_t window_offset = 0;
+
+    memcpy(output_, input_, sample_count * sizeof(LADSPA_Data));
 
     for (unsigned long i_sample = 0; i_sample < sample_count; ++i_sample, ++window_write_position_) {
       if (window_offset + window_write_position_ >= sample_count) { break; }
