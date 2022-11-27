@@ -29,7 +29,7 @@ class Reverb {
   double weight_{1};
 
   Reverb(unsigned long sample_rate, double microsample_duration_s);
-  void ResetWindow();
+  void ResetWindow(double delay_factor);
   bool UpdateDecay();
   bool UpdateWetLevel();
   void UpdateWeight(bool force = false);

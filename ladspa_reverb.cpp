@@ -8,16 +8,18 @@
 
 #include "port_id.h"
 
+namespace {
+constexpr int kNDelays = 4;
+constexpr int kNPasses = 4;
+} // namespace
 
 Reverb::Reverb(unsigned long sample_rate, double microsample_duration_s)
     : microsample_duration_s_(microsample_duration_s),
       sample_rate_(sample_rate) {
-  ResetWindow();
-  UpdateWeight();
 }
 
-void Reverb::ResetWindow() {
-  window_.resize(std::lround(microsample_duration_s_ * sample_rate_), 0);
+void Reverb::ResetWindow(double delay_factor) {
+  window_.resize(std::lround(microsample_duration_s_ * delay_factor * sample_rate_), 0);
   window_write_position_ = 0;
   window_read_position_  = 0;
 }
@@ -52,7 +54,7 @@ void Reverb::UpdateWeight(bool force) {
 
 void Reverb::ApplyWindow(unsigned long offset) {
   const auto i_end      = std::min(window_.size(), window_write_position_);
-  const auto wet_factor = wet_level_ / weight_;
+  const auto wet_factor = wet_level_ / weight_ / kNPasses;
   for (unsigned long i_window = window_read_position_; i_window < i_end; ++i_window) {
     output_[offset + i_window] += wet_factor * window_[i_window];
   }
@@ -70,15 +72,22 @@ void Reverb::Run(unsigned long sample_count) {
 
   std::memcpy(output_, input_, sample_count * sizeof(LADSPA_Data));
 
-  for (unsigned long i_sample = 0; i_sample < sample_count; ++i_sample, ++window_write_position_) {
-    if (window_offset + window_write_position_ >= sample_count) { break; }
-    if (window_write_position_ >= window_.size()) {
-      ApplyWindow(window_offset);
-      window_offset += window_.size();
+  for (int i = 0; i < kNPasses; ++i) {
+
+    const double decay_factor = 1 + 0.1765 * (i % kNDelays);
+    ResetWindow(decay_factor);
+    const double weight = weight_;
+
+    for (unsigned long i_sample = 0; i_sample < sample_count; ++i_sample, ++window_write_position_) {
+      if (window_offset + window_write_position_ >= sample_count) { break; }
+      if (window_write_position_ >= window_.size()) {
+        ApplyWindow(window_offset);
+        window_offset += window_.size();
+      }
+      window_[window_write_position_] = weight * window_[window_write_position_] + (1. - weight) * output_[i_sample];
     }
-    window_[window_write_position_] = weight_ * window_[window_write_position_] + (1. - weight_) * input_[i_sample];
+    ApplyWindow(window_offset);
   }
-  ApplyWindow(window_offset);
 }
 
 void Reverb::ConnectPort(unsigned long port, LADSPA_Data *data_location) {

@@ -23,7 +23,6 @@ void ConnectPortToReverb(LADSPA_Handle handle, unsigned long port, LADSPA_Data *
 
 void ActivateReverb(LADSPA_Handle handle) {
   std::cout << "ActivateReverb(" << handle << ")" << std::endl;
-  Reverb::Instance(handle).ResetWindow();
   Reverb::Instance(handle).UpdateWetLevel();
   Reverb::Instance(handle).UpdateWeight(true);
 }
